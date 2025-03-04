@@ -1,0 +1,11 @@
+# Ignore the actual config file with sensitive information
+config.cfg
+
+# Ignore log directories and archives
+logs/
+*.tar.gz
+
+# Ignore temporary files
+*~
+*.swp
+*.tmp
