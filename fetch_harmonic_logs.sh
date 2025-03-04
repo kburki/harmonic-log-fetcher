@@ -71,57 +71,10 @@ fetch_all_logs() {
     
     local success=false
     
-    # Try ncftp first - it can preserve timestamps with the -z flag
-    if command -v ncftp &> /dev/null; then
-        echo "Using ncftp with timestamp preservation..."
-        local ncftp_script=$(mktemp)
-        cat > "$ncftp_script" << EOF
-open -u $user -p $pass $ip
-cd $path
-set auto-resume yes
-# Turn on timestamp preservation
-set preserve-date yes
-# Get all log files
-mget *.log
-# Get any compressed logs
-mget *.gz
-# Get any text files
-mget *.txt
-quit
-EOF
-        # Execute the ncftp script
-        cd "$output_dir" && ncftp -f "$ncftp_script" > /dev/null 2>&1
-        local result=$?
-        rm "$ncftp_script"
-        
-        if [ $result -eq 0 ]; then
-            success=true
-            echo "ncftp download completed successfully with preserved timestamps."
-        else
-            echo "ncftp download failed, trying alternative methods..."
-        fi
-    fi
-    
-    # If ncftp failed or isn't installed, try wget
-    if [ "$success" = false ] && command -v wget &> /dev/null; then
-        echo "Using wget with timestamp preservation..."
-        cd "$output_dir" && wget -r -np -nH --cut-dirs=1 -N --user="$user" --password="$pass" "ftp://$ip$path/" 2>/dev/null
-        
-        if [ $? -eq 0 ]; then
-            success=true
-            echo "wget download completed successfully with preserved timestamps."
-        else
-            echo "wget download failed, trying standard ftp..."
-        fi
-    fi
-    
-    # If wget failed or isn't installed, try standard ftp with timestamp list + touch
-    if [ "$success" = false ]; then
-        echo "Using standard ftp with manual timestamp preservation..."
-        
-        # First get a directory listing with timestamps
-        local ftp_ls_cmd=$(mktemp)
-        cat > "$ftp_ls_cmd" << EOF
+    # First get a directory listing to know what files to download
+    echo "Getting file listing from $server_name..."
+    local ftp_ls_cmd=$(mktemp)
+    cat > "$ftp_ls_cmd" << EOF
 open $ip
 user $user $pass
 cd $path
@@ -129,14 +82,25 @@ ls -la
 bye
 EOF
 
-        # Get directory listing with timestamps
-        local file_list=$(mktemp)
-        ftp -n < "$ftp_ls_cmd" > "$file_list" 2>/dev/null
-        rm "$ftp_ls_cmd"
-        
-        # Create a download script
-        local download_script=$(mktemp)
-        cat > "$download_script" << EOF
+    # Get directory listing with timestamps
+    local file_list=$(mktemp)
+    ftp -n < "$ftp_ls_cmd" > "$file_list" 2>/dev/null
+    rm "$ftp_ls_cmd"
+    
+    # Extract filenames and timestamps
+    local file_timestamps=$(mktemp)
+    grep "\.log\|\.gz\|\.txt" "$file_list" | grep -v "^d" | grep -v "^total" | awk '{print $NF, $6, $7, $8}' > "$file_timestamps"
+    
+    # Count how many files we need to download
+    local total_files=$(wc -l < "$file_timestamps")
+    echo "Found $total_files log files to download from $server_name"
+    
+    # Try standard ftp with timestamp preservation and progress display
+    echo "Using standard FTP with manual timestamp preservation..."
+    
+    # Create a download script
+    local download_script=$(mktemp)
+    cat > "$download_script" << EOF
 open $ip
 user $user $pass
 binary
@@ -144,32 +108,41 @@ cd $path
 prompt off
 EOF
 
-        # Extract filenames and timestamps
-        local file_timestamps=$(mktemp)
-        grep -v "^d" "$file_list" | grep -v "^total" | awk '{print $NF, $6, $7, $8}' > "$file_timestamps"
+    # Add each file to the download script and prepare timestamp restoration
+    local count=0
+    echo > "${output_dir}/file_timestamps.txt"
+    
+    while read -r line; do
+        filename=$(echo "$line" | awk '{print $1}')
+        month=$(echo "$line" | awk '{print $2}')
+        day=$(echo "$line" | awk '{print $3}')
+        time=$(echo "$line" | awk '{print $4}')
         
-        # Add each file to the download script
-        while read -r line; do
-            filename=$(echo "$line" | awk '{print $1}')
-            month=$(echo "$line" | awk '{print $2}')
-            day=$(echo "$line" | awk '{print $3}')
-            time=$(echo "$line" | awk '{print $4}')
+        if [ -n "$filename" ] && [ "$filename" != "." ] && [ "$filename" != ".." ]; then
+            echo "get \"$filename\" \"$output_dir/$filename\"" >> "$download_script"
+            echo "$filename $month $day $time" >> "${output_dir}/file_timestamps.txt"
             
-            if [ -n "$filename" ] && [ "$filename" != "." ] && [ "$filename" != ".." ]; then
-                echo "get \"$filename\" \"$output_dir/$filename\"" >> "$download_script"
-                
-                # Store timestamp info for later use with touch
-                echo "$filename $month $day $time" >> "${output_dir}/file_timestamps.txt"
-            fi
-        done < "$file_timestamps"
-        
-        # Add final command
-        echo "bye" >> "$download_script"
-        
-        # Execute the download
-        ftp -n < "$download_script"
-        rm "$download_script" "$file_list" "$file_timestamps"
-        
+            # Increment counter
+            count=$((count + 1))
+            
+            # Show progress
+            echo -ne "Preparing to download: $count of $total_files files\r"
+        fi
+    done < "$file_timestamps"
+    echo ""
+    
+    # Add final command
+    echo "bye" >> "$download_script"
+    
+    # Execute the download
+    echo "Starting download of $total_files files from $server_name..."
+    echo "This may take a while for large log files. Progress will be shown for each file."
+    
+    ftp -n < "$download_script"
+    local result=$?
+    rm "$download_script" "$file_list" "$file_timestamps"
+    
+    if [ $result -eq 0 ]; then
         # Now restore timestamps using touch
         if [ -f "${output_dir}/file_timestamps.txt" ]; then
             echo "Restoring original timestamps..."
@@ -193,6 +166,23 @@ EOF
             rm "${output_dir}/file_timestamps.txt"
             success=true
         fi
+    else
+        echo "Standard FTP failed, trying wget as fallback..."
+        
+        # If standard FTP failed, try wget as a fallback
+        if command -v wget &> /dev/null; then
+            echo "Using wget with timestamp preservation (verbose mode)..."
+            
+            # Make wget more verbose to show progress
+            cd "$output_dir" && wget -v -r -np -nH --cut-dirs=3 -N --user="$user" --password="$pass" "ftp://$ip$path/" 2>&1 | grep --line-buffered -E 'URL|saved'
+            
+            if [ $? -eq 0 ]; then
+                success=true
+                echo "wget download completed successfully with preserved timestamps."
+            else
+                echo "wget download failed."
+            fi
+        fi
     fi
     
     # Count the number of files downloaded
@@ -203,6 +193,14 @@ EOF
         echo "WARNING: No files were downloaded from $server_name!"
     else
         echo "Successfully downloaded logs from $server_name with preserved timestamps"
+    fi
+    
+    # Check for any nested directories that were created and move files up
+    echo "Checking for nested directories..."
+    if ls -la "$output_dir"/*/ >/dev/null 2>&1; then
+        echo "Found nested directories, moving files up..."
+        find "$output_dir" -mindepth 2 -type f -exec mv {} "$output_dir"/ \;
+        find "$output_dir" -mindepth 1 -type d -exec rm -rf {} \;
     fi
 }
 
@@ -221,9 +219,9 @@ echo "Log files stored in: $LOG_DIR"
 
 # List the files that were downloaded
 echo "Files downloaded from MediaChannel:"
-ls -la "$LOG_DIR/mediachannel" | tail -n +4
+ls -la "$LOG_DIR/mediachannel" | grep -v "directory_listing" | tail -n +4
 echo "Files downloaded from MediaDeck:"
-ls -la "$LOG_DIR/mediadeck" | tail -n +4
+ls -la "$LOG_DIR/mediadeck" | grep -v "directory_listing" | tail -n +4
 
 echo "=========================================================="
 
