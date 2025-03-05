@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Harmonic Log Fetcher{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h2>Harmonic Log Fetcher Dashboard</h2>
+        <hr>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Fetch Log Files</h4>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('fetch_logs') }}" method="post">
+                    <div class="form-check mb-3">
+                        <input type="checkbox" class="form-check-input" id="test_mode" name="test_mode">
+                        <label class="form-check-label" for="test_mode">
+                            Test Mode (download only most recent files)
+                        </label>
+                    </div>
+                    
+                    <div class="mb-3" id="num_files_container" style="display: none;">
+                        <label for="num_files" class="form-label">Number of Recent Files to Download</label>
+                        <input type="number" class="form-control" id="num_files" name="num_files" value="1" min="1">
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">Fetch Log Files</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h4 class="mb-0">Configuration Information</h4>
+            </div>
+            <div class="card-body">
+                <table class="table table-striped">
+                    <tbody>
+                        <tr>
+                            <th>Base Directory</th>
+                            <td>{{ config.BASE_DIR }}</td>
+                        </tr>
+                        <tr>
+                            <th>MediaCenter Server</th>
+                            <td>{{ config.MEDIACENTER_IP }}</td>
+                        </tr>
+                        <tr>
+                            <th>MediaDeck Server</th>
+                            <td>{{ config.MEDIADECK_IP }}</td>
+                        </tr>
+                        <tr>
+                            <th>Retention Days</th>
+                            <td>{{ config.RETENTION_DAYS }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h4 class="mb-0">Recent Jobs</h4>
+            </div>
+            <div class="card-body">
+                {% if recent_jobs %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Job ID</th>
+                                <th>Start Time</th>
+                                <th>Status</th>
+                                <th>Command</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for job in recent_jobs %}
+                            <tr>
+                                <td>{{ job.id }}</td>
+                                <td>{{ job.start_time }}</td>
+                                <td>
+                                    {% if job.status == 'running' %}
+                                    <span class="badge bg-warning">Running</span>
+                                    {% elif job.status == 'completed' %}
+                                    <span class="badge bg-success">Completed</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">Failed</span>
+                                    {% endif %}
+                                </td>
+                                <td><code>{{ job.command }}</code></td>
+                                <td>
+                                    <a href="{{ url_for('job_status', job_id=job.id) }}" class="btn btn-sm btn-info">View</a>
+                                    {% if job.status == 'completed' and job.archive_path %}
+                                    <a href="{{ url_for('download_archive', job_id=job.id) }}" class="btn btn-sm btn-success">Download</a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">No jobs have been run yet.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const testModeCheckbox = document.getElementById('test_mode');
+        const numFilesContainer = document.getElementById('num_files_container');
+        
+        // Show/hide number of files input based on test mode checkbox
+        testModeCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                numFilesContainer.style.display = 'block';
+            } else {
+                numFilesContainer.style.display = 'none';
+            }
+        });
+    });
+</script>
+{% endblock %}

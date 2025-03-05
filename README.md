@@ -1,111 +1,110 @@
 # Harmonic Log Fetcher
 
-This utility script automatically fetches log files from Harmonic video playout servers via FTP and archives them for later analysis. It's designed to be run as a cron job and can handle multiple servers.
+A utility for retrieving log files from Harmonic video playout servers, with a web interface for easier team access.
 
 ## Features
 
-- Automatically downloads log files from multiple Harmonic servers
-- Preserves original file timestamps
-- Creates compressed archives of logs organized by date
-- Configurable retention policy (defaults to 5 days)
-- Multiple download methods for reliability (ncftp, wget, standard ftp)
-- Secure configuration storage separate from code
+- Automated collection of log files from MediaCenter and MediaDeck servers
+- Support for fetching all logs or just the most recent files (test mode)
+- Web interface for team access without requiring command-line knowledge
+- User roles (admin/regular) for appropriate access control
+- Configuration separation to keep credentials secure
 
-## Installation
+## Components
 
-1. Copy the setup script to your system and run it:
+1. **Command-Line Tool**
+   - `fetch_harmonic_logs.sh`: Main script for fetching logs
+   - `config.example.cfg`: Example configuration (copy to config.cfg)
+
+2. **Web Interface**
+   - Flask-based web application
+   - User authentication and management
+   - Job tracking and download capabilities
+
+## Setup Instructions
+
+### Command-Line Tool
+
+1. Clone this repository
+2. Copy the example config:
    ```bash
-   chmod +x setup_harmonic_logs.sh
-   ./setup_harmonic_logs.sh
+   cp config.example.cfg config.cfg
+   ```
+3. Edit `config.cfg` with your server details and credentials
+4. Make the script executable:
+   ```bash
+   chmod +x fetch_harmonic_logs.sh
    ```
 
-2. The setup script will:
-   - Create necessary directories
-   - Install required dependencies
-   - Create configuration files
-   - Set up a cron job to run daily
-   - Add a proper .gitignore to protect sensitive data
+### Web Interface
+
+See the [Setup Guide for Web Interface](web/README.md) for detailed instructions.
 
 ## Configuration
 
-The script uses a separate configuration file to store sensitive information like server credentials. This allows the script itself to be safely checked into version control.
+### Main Configuration (config.cfg)
 
-The default configuration file is located at:
-```
-/home/kburki/KTOO/Harmonic/config.cfg
-```
+Create a `config.cfg` file with the following structure:
 
-An example configuration file (`config.example.cfg`) is provided as a template. The actual configuration file should never be committed to version control.
-
-## Manual Execution
-
-You can run the script manually with:
 ```bash
-/home/kburki/KTOO/Harmonic/fetch_harmonic_logs.sh
+# Base directory for log storage
+BASE_DIR="/path/to/logs/directory"
+
+# MediaCenter Server Information
+MEDIACENTER_IP="server1_ip_address"
+MEDIACENTER_USER="username"
+MEDIACENTER_PASS="password" 
+MEDIACENTER_PATH="/path/to/logs"
+
+# MediaDeck Server Information
+MEDIADECK_IP="server2_ip_address"
+MEDIADECK_USER="username"
+MEDIADECK_PASS="password"
+MEDIADECK_PATH="/path/to/logs"
+
+# Retention period in days
+RETENTION_DAYS=5
 ```
 
-Or specify a different configuration file:
+### Web Users Configuration (web_users.cfg)
+
+The web interface uses a separate configuration file for user management. This file is created automatically during setup.
+
+## Usage
+
+### Command-Line
+
+Run the script directly:
+
 ```bash
-/home/kburki/KTOO/Harmonic/fetch_harmonic_logs.sh -c /path/to/alternate/config.cfg
+./fetch_harmonic_logs.sh
 ```
 
-## Security Considerations
+Optional parameters:
+- `-c config_file`: Specify a different config file
+- `-t`: Test mode (only download recent files)
+- `-n num_files`: Number of recent files to download in test mode
+- `-h`: Display help information
 
-- The configuration file contains sensitive information and should be protected
-- The script automatically adds `config.cfg` to the `.gitignore` file
-- Only commit the example configuration file (`config.example.cfg`) to version control
-- Consider restricting permissions on the configuration file:
-  ```bash
-  chmod 600 /home/kburki/KTOO/Harmonic/config.cfg
-  ```
-
-## Logs and Archives
-
-Logs are stored in dated directories under the base directory specified in the configuration:
-```
-/home/kburki/KTOO/Harmonic/logs/YYYY_MM_DD/
+Example:
+```bash
+./fetch_harmonic_logs.sh -t -n 5
 ```
 
-And are also archived as compressed tar files:
-```
-/home/kburki/KTOO/Harmonic/logs/harmonic_logs_YYYY_MM_DD.tar.gz
-```
+### Web Interface
 
-## Troubleshooting
+Access the web interface at http://your-server-ip:5001 (or the configured port).
 
-Check the cron logs for any errors:
-```
-/home/kburki/KTOO/Harmonic/logs/cron_log_YYYYMMDD.log
-```
+## Security Notes
 
-Common issues:
-- FTP connection problems (check server IPs and credentials)
-- File permission issues
-- Missing required utilities (ncftp, wget)
+1. Never commit the actual config files to git
+2. Keep credentials secure
+3. Use HTTPS for production deployments of the web interface
 
-## GitHub Configuration
+## Maintenance
 
-When pushing this code to GitHub, make sure to:
-
-1. Create a GitHub repository
-2. Initialize git in your local directory:
-   ```bash
-   cd /home/kburki/KTOO/Harmonic
-   git init
-   ```
-
-3. Add and commit the files (the .gitignore will prevent config.cfg from being included):
-   ```bash
-   git add .
-   git commit -m "Initial commit of Harmonic Log Fetcher"
-   ```
-
-4. Connect to your GitHub repository:
-   ```bash
-   git remote add origin https://github.com/yourusername/harmonic-log-fetcher.git
-   git push -u origin main
-   ```
+The script automatically handles log rotation based on the `RETENTION_DAYS` setting.
 
 ## License
 
-This script is provided under the MIT License.
+[MIT License](LICENSE)

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Job Status - Harmonic Log Fetcher{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h2>
+            Job Status
+            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary btn-sm float-end">Back to Dashboard</a>
+        </h2>
+        <hr>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-3">
+            <div class="card-header 
+                {% if status == 'running' %}
+                bg-warning
+                {% elif status == 'completed' %}
+                bg-success text-white
+                {% else %}
+                bg-danger text-white
+                {% endif %}">
+                <h4 class="mb-0">
+                    Job ID: {{ job_id }} - 
+                    {% if status == 'running' %}
+                    Running
+                    {% elif status == 'completed' %}
+                    Completed
+                    {% else %}
+                    Failed
+                    {% endif %}
+                </h4>
+            </div>
+            <div class="card-body">
+                <p><strong>Start Time:</strong> {{ start_time }}</p>
+                
+                {% if status == 'running' %}
+                <div class="alert alert-info">
+                    <div class="d-flex align-items-center">
+                        <div class="spinner-border spinner-border-sm me-2" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        Job is currently running. This page will automatically refresh to show progress.
+                    </div>
+                </div>
+                {% elif status == 'completed' and archive_path %}
+                <div class="alert alert-success">
+                    <p>Job completed successfully!</p>
+                    <p><strong>Archive:</strong> {{ archive_path }}</p>
+                    <a href="{{ url_for('download_archive', job_id=job_id) }}" class="btn btn-primary">
+                        <i class="bi bi-download"></i> Download {{ archive_filename }}
+                    </a>
+                </div>
+                {% elif status == 'failed' %}
+                <div class="alert alert-danger">
+                    <p>Job failed. Please check the output below for details.</p>
+                </div>
+                {% endif %}
+                
+                <h5 class="mt-4">Output:</h5>
+                <div class="job-container">
+                    <div class="terminal">
+{% for line in output %}
+{{ line }}
+{% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if status == 'running' %}
+<script>
+    // Auto-refresh the page every 5 seconds if the job is still running
+    setTimeout(function() {
+        window.location.reload();
+    }, 5000);
+</script>
+{% endif %}
+{% endblock %}

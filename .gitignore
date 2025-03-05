@@ -1,11 +1,54 @@
-# Ignore the actual config file with sensitive information
+# Ignore configuration files with credentials
 config.cfg
+web_users.cfg
+*.bak
 
-# Ignore log directories and archives
-logs/
+# Python virtual environment
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Log files and data
+*.log
 *.tar.gz
+*_20??_??_??/
 
-# Ignore temporary files
-*~
+# IDE files
+.idea/
+.vscode/
 *.swp
-*.tmp
+*.swo
+
+# OS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Flask specific
+instance/
+.webassets-cache
+
+# Debug files
+*.debug
