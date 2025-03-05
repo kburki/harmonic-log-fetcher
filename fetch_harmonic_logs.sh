@@ -6,23 +6,35 @@
 
 # Default config file location
 CONFIG_FILE="/home/kburki/KTOO/Harmonic/config.cfg"
+TEST_MODE=false
+NUM_FILES=1  # Default to just 1 file in test mode
 
 # Function to display usage information
 usage() {
-    echo "Usage: $0 [-c config_file]"
+    echo "Usage: $0 [-c config_file] [-t] [-n num_files]"
     echo "  -c config_file    Path to configuration file (default: $CONFIG_FILE)"
+    echo "  -t                Test mode: download only recent files from each server"
+    echo "  -n num_files      Number of recent files to download in test mode (default: 1)"
     echo "  -h                Display this help message"
     exit 1
 }
 
 # Parse command line arguments
-while getopts "c:h" opt; do
+while getopts "c:tn:h" opt; do
     case $opt in
         c) CONFIG_FILE="$OPTARG" ;;
+        t) TEST_MODE=true ;;
+        n) NUM_FILES="$OPTARG" ;;
         h) usage ;;
         *) usage ;;
     esac
 done
+
+# Validate NUM_FILES is a positive integer
+if ! [[ "$NUM_FILES" =~ ^[0-9]+$ ]] || [ "$NUM_FILES" -lt 1 ]; then
+    echo "Error: Number of files (-n) must be a positive integer"
+    usage
+fi
 
 # Check if config file exists
 if [ ! -f "$CONFIG_FILE" ]; then
@@ -48,13 +60,28 @@ TIMESTAMP=$(date +"%Y_%m_%d")
 LOG_DIR="$BASE_DIR/$TIMESTAMP"
 ARCHIVE_NAME="harmonic_logs_$TIMESTAMP.tar.gz"
 
+# If in test mode, use a different directory to avoid interfering with production logs
+if [ "$TEST_MODE" = true ]; then
+    LOG_DIR="${BASE_DIR}/test_${TIMESTAMP}"
+    ARCHIVE_NAME="harmonic_test_logs_${TIMESTAMP}.tar.gz"
+    if [ "$NUM_FILES" -eq 1 ]; then
+        echo "TEST MODE ENABLED: Will only download the most recent file from each server"
+    else
+        echo "TEST MODE ENABLED: Will download the $NUM_FILES most recent files from each server"
+    fi
+fi
+
 # Create directories for storing logs
 mkdir -p "$LOG_DIR/mediacenter"
 mkdir -p "$LOG_DIR/mediadeck"
 
 echo "=========================================================="
 echo "Harmonic Server Log Fetcher"
-echo "Fetching all logs from both servers"
+if [ "$TEST_MODE" = true ]; then
+    echo "Test mode - downloading only recent files"
+else
+    echo "Fetching all logs from both servers"
+fi
 echo "Current timestamp: $(date)"
 echo "=========================================================="
 
@@ -93,7 +120,76 @@ EOF
     
     # Count how many files we need to download
     local total_files=$(wc -l < "$file_timestamps")
-    echo "Found $total_files log files to download from $server_name"
+    echo "Found $total_files log files on $server_name"
+    
+    # In test mode, only get the N most recent files
+    if [ "$TEST_MODE" = true ] && [ "$total_files" -gt 0 ]; then
+        if [ "$NUM_FILES" -eq 1 ]; then
+            echo "Test mode: Will download only the most recent file"
+        else
+            echo "Test mode: Will download the $NUM_FILES most recent files"
+        fi
+        
+        # Create a temporary file for sortable timestamps
+        local timestamps_with_sort_key=$(mktemp)
+        
+        # Extract the most recent files based on timestamp
+        # Add a timestamp field that's properly sortable
+        while read -r line; do
+            filename=$(echo "$line" | awk '{print $1}')
+            month=$(echo "$line" | awk '{print $2}')
+            day=$(echo "$line" | awk '{print $3}')
+            time=$(echo "$line" | awk '{print $4}')
+            
+            # Convert month name to number for sorting
+            if [[ "$month" =~ ^[0-9]+$ ]]; then
+                month_num="$month"
+            else
+                case "$month" in
+                    Jan) month_num="01" ;;
+                    Feb) month_num="02" ;;
+                    Mar) month_num="03" ;;
+                    Apr) month_num="04" ;;
+                    May) month_num="05" ;;
+                    Jun) month_num="06" ;;
+                    Jul) month_num="07" ;;
+                    Aug) month_num="08" ;;
+                    Sep) month_num="09" ;;
+                    Oct) month_num="10" ;;
+                    Nov) month_num="11" ;;
+                    Dec) month_num="12" ;;
+                    *) month_num="01" ;;  # Default to January if unknown
+                esac
+            fi
+            
+            # Format day with leading zero if needed
+            day_num=$(printf "%02d" "$day")
+            
+            # Add a sortable timestamp field to each line
+            echo "$(date +%Y)$month_num$day_num$time $filename $month $day $time" >> "$timestamps_with_sort_key"
+        done < "$file_timestamps"
+        
+        # Sort by the timestamp field and take the N most recent files
+        # We'll take the minimum of NUM_FILES and total_files
+        local num_to_download
+        if [ "$NUM_FILES" -gt "$total_files" ]; then
+            num_to_download=$total_files
+            echo "Note: Only $num_to_download files available (fewer than requested $NUM_FILES)"
+        else
+            num_to_download=$NUM_FILES
+        fi
+        
+        # Create a new file with just the most recent N files
+        sort -r "$timestamps_with_sort_key" | head -n "$num_to_download" | cut -d' ' -f2- > "${file_timestamps}.newest"
+        mv "${file_timestamps}.newest" "$file_timestamps"
+        rm "$timestamps_with_sort_key"
+        
+        # Show which files were selected
+        echo "Selected the $num_to_download most recent files for download:"
+        cat "$file_timestamps" | awk '{print "- " $1}'
+        
+        total_files=$num_to_download
+    fi
     
     # Try standard ftp with timestamp preservation and progress display
     echo "Using standard FTP with manual timestamp preservation..."
@@ -153,12 +249,42 @@ EOF
                 day=$(echo "$line" | awk '{print $3}')
                 time=$(echo "$line" | awk '{print $4}')
                 
-                # Format date for touch command
-                touch_date="${current_year}${month}${day}${time}"
+                # More robust date handling
+                if [[ "$month" =~ ^[0-9]+$ ]]; then
+                    # If month is numeric, use it directly
+                    formatted_month="$month"
+                else
+                    # Convert month name to number
+                    case "$month" in
+                        Jan) formatted_month="01" ;;
+                        Feb) formatted_month="02" ;;
+                        Mar) formatted_month="03" ;;
+                        Apr) formatted_month="04" ;;
+                        May) formatted_month="05" ;;
+                        Jun) formatted_month="06" ;;
+                        Jul) formatted_month="07" ;;
+                        Aug) formatted_month="08" ;;
+                        Sep) formatted_month="09" ;;
+                        Oct) formatted_month="10" ;;
+                        Nov) formatted_month="11" ;;
+                        Dec) formatted_month="12" ;;
+                        *) formatted_month="01" ;;  # Default to January if unknown
+                    esac
+                fi
+
+                # Ensure day has leading zero if needed
+                formatted_day=$(printf "%02d" "$day")
+
+                # Format time properly for touch
+                formatted_time=$(echo "$time" | sed 's/\([0-9][0-9]\)\([0-9][0-9]\)/\1\2/')
+
+                # Create the properly formatted date string for touch
+                touch_date="${current_year}${formatted_month}${formatted_day}${formatted_time}"
                 
                 # Restore timestamp
                 if [ -f "${output_dir}/$filename" ]; then
                     touch -t "$touch_date" "${output_dir}/$filename"
+                    echo "Set timestamp for $filename: $touch_date"
                 fi
             done < "${output_dir}/file_timestamps.txt"
             
@@ -225,9 +351,14 @@ ls -la "$LOG_DIR/mediadeck" | grep -v "directory_listing" | tail -n +4
 
 echo "=========================================================="
 
-# Log rotation - keep only the last N days worth of logs
-echo "Performing log rotation (keeping only the last $RETENTION_DAYS days)..."
-find "$BASE_DIR" -type d -name "????_??_??" -mtime +$RETENTION_DAYS -exec rm -rf {} \; 2>/dev/null
-find "$BASE_DIR" -name "harmonic_logs_????_??_??.tar.gz" -mtime +$RETENTION_DAYS -exec rm -f {} \; 2>/dev/null
+# Log rotation - don't rotate test files, only regular log archives
+if [ "$TEST_MODE" = false ]; then
+    echo "Performing log rotation (keeping only the last $RETENTION_DAYS days)..."
+    find "$BASE_DIR" -type d -name "????_??_??" -mtime +$RETENTION_DAYS -exec rm -rf {} \; 2>/dev/null
+    find "$BASE_DIR" -name "harmonic_logs_????_??_??.tar.gz" -mtime +$RETENTION_DAYS -exec rm -f {} \; 2>/dev/null
+else
+    echo "Test mode: Skipping log rotation"
+    echo "You may want to manually remove the test logs at: $LOG_DIR"
+fi
 
 exit 0
