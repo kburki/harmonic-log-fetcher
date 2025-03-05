@@ -36,8 +36,8 @@ echo "Loading configuration from $CONFIG_FILE"
 source "$CONFIG_FILE"
 
 # Validate required configuration variables
-if [ -z "$BASE_DIR" ] || [ -z "$MEDIACHANNEL_IP" ] || [ -z "$MEDIACHANNEL_USER" ] || [ -z "$MEDIACHANNEL_PASS" ] || 
-   [ -z "$MEDIACHANNEL_PATH" ] || [ -z "$MEDIADECK_IP" ] || [ -z "$MEDIADECK_USER" ] || [ -z "$MEDIADECK_PASS" ] || 
+if [ -z "$BASE_DIR" ] || [ -z "$MEDIACENTER_IP" ] || [ -z "$MEDIACENTER_USER" ] || [ -z "$MEDIACENTER_PASS" ] || 
+   [ -z "$MEDIACENTER_PATH" ] || [ -z "$MEDIADECK_IP" ] || [ -z "$MEDIADECK_USER" ] || [ -z "$MEDIADECK_PASS" ] || 
    [ -z "$MEDIADECK_PATH" ] || [ -z "$RETENTION_DAYS" ]; then
     echo "Error: Configuration file is incomplete. Please check all required variables are set."
     exit 1
@@ -49,7 +49,7 @@ LOG_DIR="$BASE_DIR/$TIMESTAMP"
 ARCHIVE_NAME="harmonic_logs_$TIMESTAMP.tar.gz"
 
 # Create directories for storing logs
-mkdir -p "$LOG_DIR/mediachannel"
+mkdir -p "$LOG_DIR/mediacenter"
 mkdir -p "$LOG_DIR/mediadeck"
 
 echo "=========================================================="
@@ -205,7 +205,7 @@ EOF
 }
 
 # Fetch logs from both servers
-fetch_all_logs "$MEDIACHANNEL_IP" "$MEDIACHANNEL_USER" "$MEDIACHANNEL_PASS" "$MEDIACHANNEL_PATH" "$LOG_DIR/mediachannel" "MediaChannel"
+fetch_all_logs "$MEDIACENTER_IP" "$MEDIACENTER_USER" "$MEDIACENTER_PASS" "$MEDIACENTER_PATH" "$LOG_DIR/mediacenter" "MediaCenter"
 fetch_all_logs "$MEDIADECK_IP" "$MEDIADECK_USER" "$MEDIADECK_PASS" "$MEDIADECK_PATH" "$LOG_DIR/mediadeck" "MediaDeck"
 
 # Create compressed archive
@@ -218,8 +218,8 @@ echo "Archive created: $BASE_DIR/$ARCHIVE_NAME"
 echo "Log files stored in: $LOG_DIR"
 
 # List the files that were downloaded
-echo "Files downloaded from MediaChannel:"
-ls -la "$LOG_DIR/mediachannel" | grep -v "directory_listing" | tail -n +4
+echo "Files downloaded from MediaCenter:"
+ls -la "$LOG_DIR/mediacenter" | grep -v "directory_listing" | tail -n +4
 echo "Files downloaded from MediaDeck:"
 ls -la "$LOG_DIR/mediadeck" | grep -v "directory_listing" | tail -n +4
 
