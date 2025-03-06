@@ -31,9 +31,33 @@
                     </div>
                     
                     <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary">Fetch Log Files</button>
+                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#confirmFetchModal">
+                            Fetch Log Files
+                        </button>
                     </div>
                 </form>
+                
+                <!-- Confirmation Modal -->
+                <div class="modal fade" id="confirmFetchModal" tabindex="-1" aria-labelledby="confirmFetchModalLabel" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="confirmFetchModalLabel">Confirm Log Fetching</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>Are you sure you want to fetch log files? This operation cannot be cancelled once started.</p>
+                                <div id="fetchOptionsConfirm">
+                                    <!-- This will be filled dynamically with current fetch options -->
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="confirmFetchButton">Fetch Logs</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
