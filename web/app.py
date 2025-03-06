@@ -259,9 +259,65 @@ def dashboard():
             
         recent_jobs.append(job_info)
     
+    # Get all available log archives from the logs directory
+    available_archives = []
+    try:
+        base_dir = config.get('BASE_DIR', '/home/kburki/KTOO/Harmonic/logs/')
+        if os.path.exists(base_dir):
+            for filename in sorted(os.listdir(base_dir), reverse=True):
+                if filename.endswith('.tar.gz') and filename.startswith('harmonic_'):
+                    file_path = os.path.join(base_dir, filename)
+                    if os.path.isfile(file_path):
+                        # Extract date from filename or use file modification time
+                        try:
+                            # Try to extract date from filename format harmonic_logs_YYYY_MM_DD.tar.gz
+                            if '_logs_' in filename:
+                                date_part = filename.split('_logs_')[1].split('.')[0]
+                                # Convert YYYY_MM_DD to a readable format
+                                year, month, day = date_part.split('_')
+                                friendly_date = f"{year}-{month}-{day}"
+                            elif '_test_logs_' in filename:
+                                date_part = filename.split('_test_logs_')[1].split('.')[0]
+                                # Convert YYYY_MM_DD to a readable format
+                                year, month, day = date_part.split('_')
+                                friendly_date = f"{year}-{month}-{day} (Test)"
+                            else:
+                                # Fallback to file modification time
+                                mtime = os.path.getmtime(file_path)
+                                friendly_date = time.strftime('%Y-%m-%d', time.localtime(mtime))
+                        except:
+                            # Fallback to file modification time
+                            mtime = os.path.getmtime(file_path)
+                            friendly_date = time.strftime('%Y-%m-%d', time.localtime(mtime))
+                        
+                        # Get file size
+                        size_bytes = os.path.getsize(file_path)
+                        # Convert to human-readable format
+                        if size_bytes < 1024:
+                            size_str = f"{size_bytes} B"
+                        elif size_bytes < 1024 * 1024:
+                            size_str = f"{size_bytes / 1024:.1f} KB"
+                        else:
+                            size_str = f"{size_bytes / (1024 * 1024):.1f} MB"
+                        
+                        # Add to available archives
+                        available_archives.append({
+                            'filename': filename,
+                            'path': file_path,
+                            'date': friendly_date,
+                            'size': size_str,
+                            'mtime': os.path.getmtime(file_path)  # For sorting
+                        })
+            
+            # Sort by modification time (newest first)
+            available_archives = sorted(available_archives, key=lambda x: x['mtime'], reverse=True)
+    except Exception as e:
+        print(f"Error listing archives: {e}")
+    
     return render_template('dashboard.html', 
                           config=config, 
                           recent_jobs=recent_jobs,
+                          available_archives=available_archives,
                           username=session.get('username', 'User'),
                           is_admin=(session.get('role') == 'admin'))
 
@@ -325,6 +381,37 @@ def download_archive(job_id):
         return redirect(url_for('dashboard'))
     
     return send_file(archive_path, as_attachment=True)
+
+@app.route('/download-file/<path:filename>')
+@login_required
+def download_file(filename):
+    """Download a specific archive file by name"""
+    try:
+        # Get the base directory from config
+        config = load_config()
+        base_dir = config.get('BASE_DIR', '/home/kburki/KTOO/Harmonic/logs/')
+        
+        # Construct the full path, but sanitize the filename for security
+        safe_filename = os.path.basename(filename)
+        file_path = os.path.join(base_dir, safe_filename)
+        
+        # Verify the file exists and is within the base directory
+        if not os.path.exists(file_path) or not os.path.isfile(file_path):
+            flash("File not found")
+            return redirect(url_for('dashboard'))
+        
+        # Check if the file is a tar.gz archive and has the expected prefix
+        if not (safe_filename.endswith('.tar.gz') and 
+                (safe_filename.startswith('harmonic_logs_') or 
+                 safe_filename.startswith('harmonic_test_logs_'))):
+            flash("Invalid file type")
+            return redirect(url_for('dashboard'))
+        
+        # Send the file
+        return send_file(file_path, as_attachment=True)
+    except Exception as e:
+        flash(f"Error downloading file: {str(e)}")
+        return redirect(url_for('dashboard'))
 
 @app.route('/users')
 @admin_required
