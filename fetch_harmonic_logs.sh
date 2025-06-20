@@ -55,8 +55,8 @@ if [ -z "$BASE_DIR" ] || [ -z "$MEDIACENTER_IP" ] || [ -z "$MEDIACENTER_USER" ] 
     exit 1
 fi
 
-# Define variables
-TIMESTAMP=$(date +"%Y_%m_%d")
+# Define variables -- added hour for more often downloads
+TIMESTAMP=$(date +"%Y_%m_%d_%H")
 LOG_DIR="$BASE_DIR/$TIMESTAMP"
 ARCHIVE_NAME="harmonic_logs_$TIMESTAMP.tar.gz"
 
@@ -354,8 +354,33 @@ echo "=========================================================="
 # Log rotation - don't rotate test files, only regular log archives
 if [ "$TEST_MODE" = false ]; then
     echo "Performing log rotation (keeping only the last $RETENTION_DAYS days)..."
-    find "$BASE_DIR" -type d -name "????_??_??" -mtime +$RETENTION_DAYS -exec rm -rf {} \; 2>/dev/null
-    find "$BASE_DIR" -name "harmonic_logs_????_??_??.tar.gz" -mtime +$RETENTION_DAYS -exec rm -f {} \; 2>/dev/null
+    
+    # Debug output
+    echo "Looking for directories older than $RETENTION_DAYS days..."
+    OLD_DIRS=$(find "$BASE_DIR" -type d -name "????_??_??" -mtime +$RETENTION_DAYS -print)
+    if [ -n "$OLD_DIRS" ]; then
+        echo "Found directories to delete: $OLD_DIRS"
+    else
+        echo "No directories found older than $RETENTION_DAYS days"
+    fi
+    
+    # Debug output
+    echo "Looking for archives older than $RETENTION_DAYS days..."
+    OLD_ARCHIVES=$(find "$BASE_DIR" -name "harmonic_logs_????_??_??.tar.gz" -mtime +$RETENTION_DAYS -print)
+    if [ -n "$OLD_ARCHIVES" ]; then
+        echo "Found archives to delete: $OLD_ARCHIVES"
+    else
+        echo "No archives found older than $RETENTION_DAYS days"
+    fi
+    
+    # Actual deletion with error capture
+    echo "Attempting to delete old directories..."
+    find "$BASE_DIR" -type d -name "????_??_??" -mtime +$RETENTION_DAYS -exec rm -rf {} \; 2>&1 || echo "Error deleting directories: $?"
+    
+    echo "Attempting to delete old archives..."
+    find "$BASE_DIR" -name "harmonic_logs_????_??_??.tar.gz" -mtime +$RETENTION_DAYS -exec rm -f {} \; 2>&1 || echo "Error deleting archives: $?"
+    
+    echo "Log rotation completed"
 else
     echo "Test mode: Skipping log rotation"
     echo "You may want to manually remove the test logs at: $LOG_DIR"
