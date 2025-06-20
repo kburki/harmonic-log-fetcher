@@ -4,6 +4,12 @@
 # Created: March 04, 2025
 # Purpose: Automatically retrieve all log files each night and maintain a history
 
+# crontab -l or -e Every hour: get recent files only (7-10 most recent)
+# 0 * * * * /home/kburki/KTOO/Harmonic/fetch_harmonic_logs.sh -r -n 10 > /home/kburki/KTOO/Harmonic/logs/cron_log_$(date +\%Y\%m\%d_\%H)_recent.log 2>&1
+
+# Every 3 hours: full collection 
+# 0 */3 * * * /home/kburki/KTOO/Harmonic/fetch_harmonic_logs.sh > /home/kburki/KTOO/Harmonic/logs/cron_log_$(date +\%Y\%m\%d_\%H)_full.log 2>&1
+
 # Default config file location
 CONFIG_FILE="/home/kburki/KTOO/Harmonic/config.cfg"
 TEST_MODE=false
@@ -11,19 +17,25 @@ NUM_FILES=1  # Default to just 1 file in test mode
 
 # Function to display usage information
 usage() {
-    echo "Usage: $0 [-c config_file] [-t] [-n num_files]"
+    echo "Usage: $0 [-c config_file] [-t] [-r] [-n num_files]"
     echo "  -c config_file    Path to configuration file (default: $CONFIG_FILE)"
     echo "  -t                Test mode: download only recent files from each server"
-    echo "  -n num_files      Number of recent files to download in test mode (default: 1)"
+    echo "  -r                Recent mode: download only recent files (for frequent runs)"
+    echo "  -n num_files      Number of recent files to download in test or recent mode (default: 1)"
     echo "  -h                Display this help message"
     exit 1
 }
 
 # Parse command line arguments
-while getopts "c:tn:h" opt; do
+# Default values
+RECENT_MODE=false
+
+# Parse command line arguments
+while getopts "c:trn:h" opt; do
     case $opt in
         c) CONFIG_FILE="$OPTARG" ;;
         t) TEST_MODE=true ;;
+        r) RECENT_MODE=true ;;
         n) NUM_FILES="$OPTARG" ;;
         h) usage ;;
         *) usage ;;
@@ -55,7 +67,7 @@ if [ -z "$BASE_DIR" ] || [ -z "$MEDIACENTER_IP" ] || [ -z "$MEDIACENTER_USER" ] 
     exit 1
 fi
 
-# Define variables -- added hour for more often downloads
+# Define variables
 TIMESTAMP=$(date +"%Y_%m_%d_%H")
 LOG_DIR="$BASE_DIR/$TIMESTAMP"
 ARCHIVE_NAME="harmonic_logs_$TIMESTAMP.tar.gz"
@@ -68,6 +80,14 @@ if [ "$TEST_MODE" = true ]; then
         echo "TEST MODE ENABLED: Will only download the most recent file from each server"
     else
         echo "TEST MODE ENABLED: Will download the $NUM_FILES most recent files from each server"
+    fi
+elif [ "$RECENT_MODE" = true ]; then
+    LOG_DIR="${BASE_DIR}/recent_${TIMESTAMP}"
+    ARCHIVE_NAME="harmonic_recent_logs_${TIMESTAMP}.tar.gz"
+    if [ "$NUM_FILES" -eq 1 ]; then
+        echo "RECENT MODE ENABLED: Will only download the most recent file from each server"
+    else
+        echo "RECENT MODE ENABLED: Will download the $NUM_FILES most recent files from each server"
     fi
 fi
 
@@ -123,7 +143,7 @@ EOF
     echo "Found $total_files log files on $server_name"
     
     # In test mode, only get the N most recent files
-    if [ "$TEST_MODE" = true ] && [ "$total_files" -gt 0 ]; then
+    if [ "$TEST_MODE" = true ] || [ "$RECENT_MODE" = true ]; then
         if [ "$NUM_FILES" -eq 1 ]; then
             echo "Test mode: Will download only the most recent file"
         else
@@ -351,8 +371,8 @@ ls -la "$LOG_DIR/mediadeck" | grep -v "directory_listing" | tail -n +4
 
 echo "=========================================================="
 
-# Log rotation - don't rotate test files, only regular log archives
-if [ "$TEST_MODE" = false ]; then
+# Log rotation - don't rotate test files or recent files, only regular log archives
+if [ "$TEST_MODE" = false ] && [ "$RECENT_MODE" = false ]; then
     echo "Performing log rotation (keeping only the last $RETENTION_DAYS days)..."
     
     # Debug output
@@ -382,8 +402,13 @@ if [ "$TEST_MODE" = false ]; then
     
     echo "Log rotation completed"
 else
-    echo "Test mode: Skipping log rotation"
-    echo "You may want to manually remove the test logs at: $LOG_DIR"
+    if [ "$TEST_MODE" = true ]; then
+        echo "Test mode: Skipping log rotation"
+        echo "You may want to manually remove the test logs at: $LOG_DIR"
+    elif [ "$RECENT_MODE" = true ]; then
+        echo "Recent mode: Skipping log rotation"
+        echo "Recent logs stored at: $LOG_DIR"
+    fi
 fi
 
 exit 0
