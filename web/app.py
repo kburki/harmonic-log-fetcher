@@ -403,7 +403,8 @@ def download_file(filename):
         # Check if the file is a tar.gz archive and has the expected prefix
         if not (safe_filename.endswith('.tar.gz') and 
                 (safe_filename.startswith('harmonic_logs_') or 
-                 safe_filename.startswith('harmonic_test_logs_'))):
+                 safe_filename.startswith('harmonic_test_logs_') or
+                 safe_filename.startswith('harmonic_recent_logs_'))):
             flash("Invalid file type")
             return redirect(url_for('dashboard'))
         
