@@ -371,34 +371,95 @@ ls -la "$LOG_DIR/mediadeck" | grep -v "directory_listing" | tail -n +4
 
 echo "=========================================================="
 
-# Log rotation - don't rotate test files or recent files, only regular log archives
+# Log rotation - handle different types of files with different retention periods
 if [ "$TEST_MODE" = false ] && [ "$RECENT_MODE" = false ]; then
-    echo "Performing log rotation (keeping only the last $RETENTION_DAYS days)..."
+    echo "Performing log rotation..."
     
-    # Debug output
-    echo "Looking for directories older than $RETENTION_DAYS days..."
-    OLD_DIRS=$(find "$BASE_DIR" -type d -name "????_??_??" -mtime +$RETENTION_DAYS -print)
+    # Regular log rotation (keeping only the last $RETENTION_DAYS days)
+    echo "Cleaning up regular logs older than $RETENTION_DAYS days..."
+    
+    # Debug output for regular files
+    echo "Looking for regular directories older than $RETENTION_DAYS days..."
+    OLD_DIRS=$(find "$BASE_DIR" -type d -name "????_??_??_??" -mtime +$RETENTION_DAYS -print)
     if [ -n "$OLD_DIRS" ]; then
-        echo "Found directories to delete: $OLD_DIRS"
+        echo "Found regular directories to delete: $OLD_DIRS"
     else
-        echo "No directories found older than $RETENTION_DAYS days"
+        echo "No regular directories found older than $RETENTION_DAYS days"
     fi
     
-    # Debug output
-    echo "Looking for archives older than $RETENTION_DAYS days..."
-    OLD_ARCHIVES=$(find "$BASE_DIR" -name "harmonic_logs_????_??_??.tar.gz" -mtime +$RETENTION_DAYS -print)
+    # Debug output for regular archives
+    echo "Looking for regular archives older than $RETENTION_DAYS days..."
+    OLD_ARCHIVES=$(find "$BASE_DIR" -name "harmonic_logs_????_??_??_??.tar.gz" -mtime +$RETENTION_DAYS -print)
     if [ -n "$OLD_ARCHIVES" ]; then
-        echo "Found archives to delete: $OLD_ARCHIVES"
+        echo "Found regular archives to delete: $OLD_ARCHIVES"
     else
-        echo "No archives found older than $RETENTION_DAYS days"
+        echo "No regular archives found older than $RETENTION_DAYS days"
+    fi
+    
+    # Debug output for test files (same retention as regular)
+    echo "Looking for test directories older than $RETENTION_DAYS days..."
+    OLD_TEST_DIRS=$(find "$BASE_DIR" -type d -name "test_????_??_??_??" -mtime +$RETENTION_DAYS -print)
+    if [ -n "$OLD_TEST_DIRS" ]; then
+        echo "Found test directories to delete: $OLD_TEST_DIRS"
+    else
+        echo "No test directories found older than $RETENTION_DAYS days"
+    fi
+    
+    echo "Looking for test archives older than $RETENTION_DAYS days..."
+    OLD_TEST_ARCHIVES=$(find "$BASE_DIR" -name "harmonic_test_logs_????_??_??_??.tar.gz" -mtime +$RETENTION_DAYS -print)
+    if [ -n "$OLD_TEST_ARCHIVES" ]; then
+        echo "Found test archives to delete: $OLD_TEST_ARCHIVES"
+    else
+        echo "No test archives found older than $RETENTION_DAYS days"
+    fi
+    
+    # Recent files cleanup (different retention period)
+    if [ -n "$RECENT_RETENTION_HOURS" ] && [ "$RECENT_RETENTION_HOURS" -gt 0 ]; then
+        echo "Cleaning up recent logs older than $RECENT_RETENTION_HOURS hours..."
+        
+        # Convert hours to minutes for find command
+        RECENT_RETENTION_MINUTES=$((RECENT_RETENTION_HOURS * 60))
+        
+        echo "Looking for recent directories older than $RECENT_RETENTION_HOURS hours..."
+        OLD_RECENT_DIRS=$(find "$BASE_DIR" -type d -name "recent_????_??_??_??" -mmin +$RECENT_RETENTION_MINUTES -print)
+        if [ -n "$OLD_RECENT_DIRS" ]; then
+            echo "Found recent directories to delete: $OLD_RECENT_DIRS"
+        else
+            echo "No recent directories found older than $RECENT_RETENTION_HOURS hours"
+        fi
+        
+        echo "Looking for recent archives older than $RECENT_RETENTION_HOURS hours..."
+        OLD_RECENT_ARCHIVES=$(find "$BASE_DIR" -name "harmonic_recent_logs_????_??_??_??.tar.gz" -mmin +$RECENT_RETENTION_MINUTES -print)
+        if [ -n "$OLD_RECENT_ARCHIVES" ]; then
+            echo "Found recent archives to delete: $OLD_RECENT_ARCHIVES"
+        else
+            echo "No recent archives found older than $RECENT_RETENTION_HOURS hours"
+        fi
     fi
     
     # Actual deletion with error capture
-    echo "Attempting to delete old directories..."
-    find "$BASE_DIR" -type d -name "????_??_??" -mtime +$RETENTION_DAYS -exec rm -rf {} \; 2>&1 || echo "Error deleting directories: $?"
+    echo "Attempting to delete old regular directories..."
+    find "$BASE_DIR" -type d -name "????_??_??_??" -mtime +$RETENTION_DAYS -exec rm -rf {} \; 2>&1 || echo "Error deleting regular directories: $?"
     
-    echo "Attempting to delete old archives..."
-    find "$BASE_DIR" -name "harmonic_logs_????_??_??.tar.gz" -mtime +$RETENTION_DAYS -exec rm -f {} \; 2>&1 || echo "Error deleting archives: $?"
+    echo "Attempting to delete old regular archives..."
+    find "$BASE_DIR" -name "harmonic_logs_????_??_??_??.tar.gz" -mtime +$RETENTION_DAYS -exec rm -f {} \; 2>&1 || echo "Error deleting regular archives: $?"
+    
+    echo "Attempting to delete old test directories..."
+    find "$BASE_DIR" -type d -name "test_????_??_??_??" -mtime +$RETENTION_DAYS -exec rm -rf {} \; 2>&1 || echo "Error deleting test directories: $?"
+    
+    echo "Attempting to delete old test archives..."
+    find "$BASE_DIR" -name "harmonic_test_logs_????_??_??_??.tar.gz" -mtime +$RETENTION_DAYS -exec rm -f {} \; 2>&1 || echo "Error deleting test archives: $?"
+    
+    # Delete recent files if retention is configured
+    if [ -n "$RECENT_RETENTION_HOURS" ] && [ "$RECENT_RETENTION_HOURS" -gt 0 ]; then
+        RECENT_RETENTION_MINUTES=$((RECENT_RETENTION_HOURS * 60))
+        
+        echo "Attempting to delete old recent directories..."
+        find "$BASE_DIR" -type d -name "recent_????_??_??_??" -mmin +$RECENT_RETENTION_MINUTES -exec rm -rf {} \; 2>&1 || echo "Error deleting recent directories: $?"
+        
+        echo "Attempting to delete old recent archives..."
+        find "$BASE_DIR" -name "harmonic_recent_logs_????_??_??_??.tar.gz" -mmin +$RECENT_RETENTION_MINUTES -exec rm -f {} \; 2>&1 || echo "Error deleting recent archives: $?"
+    fi
     
     echo "Log rotation completed"
 else

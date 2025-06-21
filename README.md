@@ -1,14 +1,15 @@
 # Harmonic Log Fetcher
 
-A utility for retrieving log files from Harmonic video playout servers, with a web interface for easier team access.
+A utility for retrieving log files from Harmonic video playout servers, with a web interface for easier team access and dual-frequency collection for critical issue detection.
 
 ## Features
 
-- Automated collection of log files from MediaCenter and MediaDeck servers
-- Support for fetching all logs or just the most recent files (test mode)
-- Web interface for team access without requiring command-line knowledge
-- User roles (admin/regular) for appropriate access control
-- Configuration separation to keep credentials secure
+- **Dual-frequency log collection**: Hourly recent files + periodic full collection
+- **Configurable retention**: Separate retention policies for different file types
+- **Real-time issue capture**: Frequent collection prevents data loss from server cleanup
+- **Web interface** for team access without requiring command-line knowledge
+- **User roles** (admin/regular) for appropriate access control
+- **Configuration separation** to keep credentials secure
 
 ## Components
 
@@ -62,8 +63,11 @@ MEDIADECK_USER="username"
 MEDIADECK_PASS="password"
 MEDIADECK_PATH="/path/to/logs"
 
-# Retention period in days
-RETENTION_DAYS=5
+# Retention period in days for regular and test logs
+RETENTION_DAYS=10
+
+# Retention period in hours for recent logs (default: 24)
+RECENT_RETENTION_HOURS=24
 ```
 
 ### Web Users Configuration (web_users.cfg)
@@ -74,36 +78,105 @@ The web interface uses a separate configuration file for user management. This f
 
 ### Command-Line
 
-Run the script directly:
+Run the script with various modes:
 
 ```bash
+# Full collection (all files)
 ./fetch_harmonic_logs.sh
-```
 
-Optional parameters:
-- `-c config_file`: Specify a different config file
-- `-t`: Test mode (only download recent files)
-- `-n num_files`: Number of recent files to download in test mode
-- `-h`: Display help information
+# Recent files only (for frequent monitoring)
+./fetch_harmonic_logs.sh -r -n 10
 
-Example:
-```bash
+# Test mode (for development)
 ./fetch_harmonic_logs.sh -t -n 5
 ```
+
+#### Parameters:
+- `-c config_file`: Specify a different config file
+- `-r`: Recent mode (download only recent files for frequent runs)
+- `-t`: Test mode (download only recent files, separate retention)
+- `-n num_files`: Number of recent files to download in recent or test mode (default: 1)
+- `-h`: Display help information
+
+#### Archive Naming:
+- **Regular logs**: `harmonic_logs_YYYY_MM_DD_HH.tar.gz`
+- **Recent logs**: `harmonic_recent_logs_YYYY_MM_DD_HH.tar.gz`
+- **Test logs**: `harmonic_test_logs_YYYY_MM_DD_HH.tar.gz`
+
+### Recommended Cron Setup
+
+For optimal log capture without data loss:
+
+```bash
+# Every hour: get recent files only (captures real-time issues)
+0 * * * * /path/to/fetch_harmonic_logs.sh -r -n 10 > /path/to/logs/cron_log_$(date +\%Y\%m\%d_\%H)_recent.log 2>&1
+
+# Every 3 hours: full collection (complete backup)
+0 */3 * * * /path/to/fetch_harmonic_logs.sh > /path/to/logs/cron_log_$(date +\%Y\%m\%d_\%H)_full.log 2>&1
+```
+
+This dual-frequency approach ensures:
+- **No data loss**: Frequent collection prevents server cleanup from removing files
+- **Complete coverage**: Regular full collections ensure nothing is missed
+- **Efficient operation**: Recent mode downloads only what's needed for monitoring
 
 ### Web Interface
 
 Access the web interface at http://your-server-ip:5001 (or the configured port).
+
+## Retention Policies
+
+The system uses different retention periods for different types of logs:
+
+- **Regular logs**: Configurable via `RETENTION_DAYS` (default: 10 days)
+- **Test logs**: Same as regular logs (`RETENTION_DAYS`)
+- **Recent logs**: Configurable via `RECENT_RETENTION_HOURS` (default: 24 hours)
+
+This allows for:
+- Long-term storage of complete log sets
+- Short-term storage of frequent monitoring snapshots
+- Automatic cleanup to prevent disk space issues
+
+## Recent Updates
+
+### Version 2.1 (June 2025)
+- **Added recent mode (`-r` flag)**: Enables frequent collection of recent files
+- **Dual-frequency collection**: Support for hourly recent + periodic full collection
+- **Enhanced retention**: Separate retention policies for different file types
+- **Hourly timestamping**: Archives now include hour in filename
+- **Improved log rotation**: Better debugging and error handling
+- **Configuration enhancement**: Added `RECENT_RETENTION_HOURS` setting
+
+### Version 2.0 (March 2025)
+- **Web interface**: Added Flask-based web interface for team access
+- **User management**: Role-based authentication (admin/regular users)
+- **Job tracking**: Real-time job status and progress monitoring
+- **Download capabilities**: Web-based archive downloads
+- **Security improvements**: Secure session handling and input validation
 
 ## Security Notes
 
 1. Never commit the actual config files to git
 2. Keep credentials secure
 3. Use HTTPS for production deployments of the web interface
+4. Regularly audit the user list
 
-## Maintenance
+## Troubleshooting
 
-The script automatically handles log rotation based on the `RETENTION_DAYS` setting.
+### Log Collection Issues
+- Check server connectivity and credentials in `config.cfg`
+- Verify disk space in the base directory
+- Review cron logs for any error messages
+
+### Web Interface Issues
+- Check service status: `sudo systemctl status harmonic-web`
+- Review application logs for errors
+- Verify all template files are present
+
+### Retention Issues
+- Use the diagnostic script: `./check_log_retention.sh`
+- Verify retention settings in configuration
+- Check file permissions in the logs directory
 
 ## License
 
