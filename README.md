@@ -1,6 +1,6 @@
-# Harmonic Log Fetcher
+# MediaKind Log Fetcher
 
-A utility for retrieving log files from Harmonic video playout servers, with a web interface for easier team access and dual-frequency collection for critical issue detection.
+A utility for retrieving log files from MediaKind Spectrum video playout servers, with a web interface for easier team access and dual-frequency collection for critical issue detection.
 
 ## Features
 
