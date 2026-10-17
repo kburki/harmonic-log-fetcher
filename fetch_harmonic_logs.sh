@@ -200,12 +200,12 @@ EOF
         fi
         
         # Create a new file with just the most recent N files
-        sort -r "$timestamps_with_sort_key" | head -n "$num_to_download" | cut -d' ' -f2- > "${file_timestamps}.newest"
+        sort -r "$timestamps_with_sort_key" | tail -n +2 | head -n "$num_to_download" | cut -d' ' -f2- > "${file_timestamps}.newest"
         mv "${file_timestamps}.newest" "$file_timestamps"
         rm "$timestamps_with_sort_key"
         
         # Show which files were selected
-        echo "Selected the $num_to_download most recent files for download:"
+        echo "Selected the $num_to_download most recent files for download (skipping the newest, which the server is still writing):"
         cat "$file_timestamps" | awk '{print "- " $1}'
         
         total_files=$num_to_download
