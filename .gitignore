@@ -51,4 +51,4 @@ instance/
 .webassets-cache
 
 # Debug files
-*.debug
+*.debuglogs/
