@@ -299,7 +299,7 @@ EOF
                 formatted_time=$(echo "$time" | sed 's/\([0-9][0-9]\)\([0-9][0-9]\)/\1\2/')
 
                 # Create the properly formatted date string for touch
-                touch_date="${current_year}${formatted_month}${formatted_day}${formatted_time}"
+                touch_date="${current_year}${formatted_month}${formatted_day}${formatted_time//:/}"
                 
                 # Restore timestamp
                 if [ -f "${output_dir}/$filename" ]; then
