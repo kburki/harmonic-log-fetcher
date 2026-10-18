@@ -4,6 +4,7 @@
 // Replaces these crontab lines:
 //   0 * * * *    fetch_harmonic_logs.sh -r -n 10   (hourly, recent files only)
 //   0 */3 * * *  fetch_harmonic_logs.sh            (every 3 hours, full collection)
+// and harmonic-web.service (systemd), the web interface on port 5001.
 //
 // The hourly quick fetch skips the hours when the full collection runs
 // (0, 3, 6, 9, 12, 15, 18, 21) so the two never run at the same time.
@@ -36,6 +37,20 @@ module.exports = {
       interpreter: '/bin/bash',
       autorestart: false,
       cron_restart: '0 */3 * * *',
+      time: true,
+    },
+    {
+      // Web interface for browsing/downloading the fetched logs (port 5001)
+      name: 'harmonic-web',
+      cwd: `${HARMONIC_DIR}/web`,
+      script: `${HARMONIC_DIR}/web/app.py`,
+      interpreter: `${HARMONIC_DIR}/web/venv/bin/python`,
+      env: {
+        PYTHONUNBUFFERED: '1',
+      },
+      autorestart: true,
+      max_restarts: 10,
+      restart_delay: 5000,
       time: true,
     },
   ],
