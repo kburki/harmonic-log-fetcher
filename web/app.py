@@ -469,4 +469,4 @@ if __name__ == '__main__':
         print(f"Make sure all template files are in the {template_dir} directory")
     
     # Run the Flask app
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=False)
