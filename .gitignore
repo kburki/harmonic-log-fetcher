@@ -53,3 +53,5 @@ instance/
 # Debug files
 *.debuglogs/
 PolarisPlay/
+logs/
+*.backup
